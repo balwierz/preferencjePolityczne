@@ -1,16 +1,53 @@
 ---
-title: "Preferencje Polityczne"
-author: "Piotr Balwierz"
-date: "4 December 2016"
+title: "Preferencje Polityczne pokolenia stanu wojennego"
+author: "Piotr Balwierz, email: moje_nazwisko (małpa) na gmailu"
+date: "13 grudnia 2016"
 output: html_document
+runtime: shiny
 ---
-# kolor .N 005ca9
 
 ```{r setup, include=FALSE}
 library(shiny)
+library(glmnet)
+#session$onSessionEnded(stopApp)
+session$allowReconnect(TRUE)
+library(Cairo)
+#library(Hmisc)
 knitr::opts_chunk$set(echo = TRUE)
-data2 = readRDS("data2.RDS")
-plotOverlappingHist <- function(a, b, colors=c("white","gray20","gray50"), xaxt="n",
+data = readRDS("data.RDS")
+plotOverlappingHist2 <- function(a, b, breaks=NULL, xlim=NULL, ylim=NULL, labels=c("","Razem","", "", "", ".N", ""), ...)
+{
+  
+  ahist=NULL
+  bhist=NULL
+  
+  if(!(is.null(breaks))){
+    ahist=hist(a,breaks=breaks,plot=F)
+    bhist=hist(b,breaks=breaks,plot=F)
+  } else {
+    ahist=hist(a,plot=F)
+    bhist=hist(b,plot=F)
+    
+    dist = ahist$breaks[2]-ahist$breaks[1]
+    breaks = seq(min(ahist$breaks,bhist$breaks),max(ahist$breaks,bhist$breaks),dist)
+    
+    ahist=hist(a,breaks=breaks,plot=F)
+    bhist=hist(b,breaks=breaks,plot=F)
+  }
+  
+  if(is.null(xlim)){
+    xlim = c(min(ahist$breaks,bhist$breaks),max(ahist$breaks,bhist$breaks))
+  }
+  
+  if(is.null(ylim)){
+    ylim = c(0,max(ahist$counts,bhist$counts))
+  }
+  
+  plot(ahist, xlim=xlim, ylim=ylim, col="red", ...=...)
+  plot(bhist, xlim=xlim, ylim=ylim, add=T, col=rgb(0, 1, 0, 0.5) )
+}
+
+plotOverlappingHist <- function(a, b, colors=c("red", rgb(0, 1, 0, 0.5), "gray50"), xaxt="n", legend=NULL,
                                 breaks=NULL, xlim=NULL, ylim=NULL, labels=c("","Razem","", "", "", ".N", ""), ...)
 {
   
@@ -48,19 +85,70 @@ plotOverlappingHist <- function(a, b, colors=c("white","gray20","gray50"), xaxt=
     }
   }
   
-  plot(ahist, xlim=xlim, ylim=ylim, col=colors[1], xaxt=xaxt, ...=...)
-  plot(bhist, xlim=xlim, ylim=ylim, col=colors[2], add=T)
-  plot(overlap, xlim=xlim, ylim=ylim, col=colors[3], add=T)
+  ylim=ylim*c(1, 1.2)
+  
+  #par(mar=c(4.1,2.1,3.1,10))
+  plot(ahist, xlim=xlim, ylim=ylim, col=colors[1], density=15, xaxt=xaxt, ...=...)
+  plot(bhist, xlim=xlim, ylim=ylim, col=colors[2], density=15, angle=-45, add=T)
+  #plot(overlap, xlim=xlim, ylim=ylim, col=colors[3], add=T)
   axis(1, at=0:6, labels=labels, las=3)
+  #Ecdf(c(a,b), what = "F", group = factor(c(rep("a", length(a)), rep("b", length(b)))))
+  if(!is.null(legend))
+    legend("topright", legend = legend, lwd=2, angle=c(45, -45), col=colors[1:2])
+}
+
+plotCategoric = function(x, y, main="", min.count=4)
+{
+  par(mar=c(10,7.1,3.1,1))
+  p = sort(table(x), decreasing = T)
+  p = p[p >= min.count]
+  y = y[x %in% names(p)]
+  x = x[x %in% names(p)]
+  x = droplevels.factor(x)
+  #fluidPage(
+  #  fluidRow(
+  #    column(4, wellPanel(
+      #renderTable(p)
+      plot(x, y, ylab="poglądy na osi Razem - .N", xaxt="n", yaxt="n", main=main)
+      axis(2, at=0:6, labels=c(NA, "Razem", NA, NA, NA, ".N", NA), las=3)
+      axis(1, at=seq_along(levels(x)), labels=paste0(levels(x), " (", table(x), ")"), las=3)
+      
+  #    ))
+  #  )
+  #)
 }
 ```
 
+
+
 ## Wprowadzenie
-Rok temu podczas wyborów parlamentarnych na FB i realu nie tylko było wiele dyskusji politycznych. Spieraliśmy się nie na linii PO-PiS jak większość społeczeństwa, lecz Razem-Nowoczesna. Postanowiłem przeprowadzić badanie w celu ustalenia źródła naszych przekonań politycznych. Pytania dotyczyły głównie dzieciństwa: otoczenia, sposobu spędzania czasu itd, czyli tego co może wpływać na kształtowanie się osobowości.
-Ankietę rozesłałem do kolegów ze studiów SMP, ale każdy mógł w niej wziąć udział. Zamieściłem pytania filtrujące: czy jesteś z pokolenia stanu wojennego oraz czy uzyskałeś tytuł doktora.
+Rok temu podczas wyborów parlamentarnych na FB i realu nie tylko było wiele dyskusji politycznych. Spieraliśmy się nie na linii PO-PiS jak większość społeczeństwa, lecz Razem-Nowoczesna. Postanowiłem przeprowadzić badanie w celu ustalenia źródła naszych przekonań politycznych. Pytania dotyczyły głównie dzieciństwa: otoczenia, sposobu spędzania czasu itd, czyli tego co może wpływać na kształtowanie się osobowości.\
+
+```{r, echo=F}
+img(src="general.jpeg", align="center", width="200")
+```
+
+Ankietę zacząłem słowami:
+"Czym to mikro-badanie jest różne od tysięcy innych socjologicznych badań?
+Jesteśmy unikatowi: jako pierwsze pokolenie które może jeszcze pamiętać PRL a dorastało w wolności. Jesteśmy naukowcami i pewnie wszyscy mamy mocno racjonalne podejście do świata i spędzamy dużo czasu “krystalizując” własne poglądy. Kilkoro z nas angażuje się działalność polityczną, czy to prowadząc blogi, audycje internetowe lub działając w partiach."
+
+Ankietę rozesłałem głównie do kolegów ze studiów SMP, ale każdy mógł w niej wziąć udział. 
+Zamieściłem pytania filtrujące: czy jesteś z pokolenia stanu wojennego oraz czy uzyskałeś tytuł doktora.
+
+Po otrzymaniu ponad 60 odpowiedzi udostępniłem tabelę wyników w surowej formie. Teraz, po roku od rozesłania ankiety, po trosze z racji 35-lecia wprowadzenia stanu wojennego podaję wyniki w bardziej przystępnej formie. Nie dowiadywałem się jak takie opracowania robią profesjonalne ośrodki, robię to po swojemu.
 
 ## Kilka statystyk opisowych danych
-Histogram preferencji politycznych na osi Razem - .Nowoczesna ma dosyć równomierny rozkład pomiędzy skrajnymi opcjami, ale zdecydowanie więcej osób plasuje się poza .Nowoczesną, czyli przynajmniej w naszym środowisku postrzegana jest jako lekko bardziej centrowa partia.
+
+Pierwsze pytanie było o to czy należy się do pokolenia stanu wojennego.
+`r renderTable(table(data$kiedyUrodzony))`
+Aż 29 osób urodziło się po 1985r, a 7 osób przed 1980. Postanowiłem wykorzystać wszystkie odpowiedzi bez względu czy było się w odpowiedniej grupie wiekowej.
+
+Okazało się że w okresie szkolnym większość z nas była postrzegana jako indywidualiści
+`r renderTable(table(data$charakter))`
+
+65 indywidualistów, 12 osób społecznych.
+
+Histogram preferencji politycznych na osi Razem - .Nowoczesna ma dosyć równomierny rozkład pomiędzy skrajnymi opcjami, ale zdecydowanie więcej osób plasuje się poza .Nowoczesną, czyli przynajmniej w naszym środowisku postrzegana jest jako lekko bardziej centrowa partia.\
 ```{r descriptive, echo=F}
 #na lewo od Razem
 #1 - Razem
@@ -70,30 +158,43 @@ Histogram preferencji politycznych na osi Razem - .Nowoczesna ma dosyć równomi
 #5 - Nowoczesna
 #6 - jestem bardziej nowoczesny/-a od Nowoczesnej
 par(mar=c(13,4.1,3.1,1))
-hist(data2$y,breaks = seq(-0.5, 6.5, by = 1), xaxt="n", xlab="", ylab="# respondentów", main="wszystkie odpowiedzi");
+hist(data$y,breaks = seq(-0.5, 6.5, by = 1), xaxt="n",
+    col=c("white", rgb(113/255, 32/255, 82/255), "white", "white", "white", rgb(0, 92/255, 169/255) ,"white"),
+    xlab="", ylab="# respondentów", main="wszystkie odpowiedzi");
 axis(1, at=0:6, labels=c("na lewo od Razem","Razem","raczej Razem", "tak samo mi daleko do obu", "raczej .Nowoczesna", ".Nowoczesna", "bardziej Nowoczesney"), las=3)
 ```
 
-##
+Znacznie mniej kobiet niż mężczyzn wzięło udział w badaniu. Wśród pań mniej było skrajnych opcji politycznych
+```{r, echo=F}
+plotOverlappingHist(a = data$y[data$plec=="Samica"], b = data$y[data$plec=="Samiec"], xlab="", ylab="#respondentów", 
+                    main="płeć",
+                    breaks = seq(-0.5, 6.5, by = 1),
+                    legend = c("samica", "samiec")
+                    )
+```
+
+
+## Analiza 1: odpowiedzi binarne (TAK/NIE)
+
+Zobaczmy czy istnieje jakaś prosta korelacja między odpowiedziami a którymś z predyktorów. Z racji na wielkość próby (`r dim(data)[1]` odpowiedzi) i wielu pytań (`r dim(data)[2]`), nie można się spodziewać bardzo istotnych wynikóW. Wziąłem wszystkie binarne odpowiedzi i zrobiłem t-test dla porównania średnich wyników w obu grupach. Oto tabela wyników:
+
 ```{r binarne}
 
 res = data.frame(pval=numeric(0), czynnik=character(0))
-for(i in 3:length(data2))
+for(i in 2:length(data))
 {
-  #cat(i); cat("\n")
-  x = data2[, i]
-  if(class(x) == "integer" | class(x) == "factor")
+  x = data[, i]
+  if(class(x) == "factor")
   {
-    #cat(names(data2)[i]); cat("\n")
+    y = data$y[!(x %in% c("BRAK ODPOWIEDZI", "nie wiem"))]
+    x = x[!(x %in% c("BRAK ODPOWIEDZI", "nie wiem"))]
+    x = droplevels(x)
     x.n = as.numeric(x)
     u = sort(unique(x.n))
     if(length(u)==2 & sum(x.n==u[1], na.rm=T) > 1 & sum(x.n==u[2], na.rm=T) > 1 )
     {
-      #cat(names(data2)[i]); cat("\n")
-      
-      tt = t.test(data2$y[x.n==u[1]], data2$y[x.n==u[2]])
-      #cat(tt$p.value); cat("\n")
-      res=rbind(res, data.frame(pval=tt$p.value, czynnik=names(data2)[i]))
+      tt = t.test(y[x.n==u[1]], y[x.n==u[2]])
+      res=rbind(res, data.frame(pval=tt$p.value, czynnik=names(data)[i]))
     }
   }
 }
@@ -103,87 +204,286 @@ res = res[c(1,3,2)]
 renderTable(res, digits=5)
 ```
 
-Zobaczmy czy istnieje jakaś prosta korelacja między odpowiedziami a którymś z predyktorów. Z racji na wielkość próby (64 odpowiedzi), nie można się spodziewać bardzo significant wynikóW. Najmocniej korelujące binarne odpowiedzi to:
-Wszystkie osoby, które określiły się jako profesjonalni humaniści, (a było ich pięcioro) opowiedziały się za partią Razem, albo "raczej Razem". To bardziej pytanie filtrujęce niż pytające o przyczynę.
 
 ```{r humanista, echo=F}
-hI = as.integer(data2$czyHumanista)==2
-nhI = as.integer(data2$czyHumanista)==1
-plotOverlappingHist(a = data2$y[hI], b = data2$y[nhI], 
+hI = as.integer(data$czyHumanista)==2
+nhI = as.integer(data$czyHumanista)==1
+plotOverlappingHist(a = data$y[hI], b = data$y[nhI], 
+                    legend = c("humanista", "nie-humanista"),
                     main="humaniści vs reszta", xaxt="n", xlab="", ylab="#respondentów",
                     breaks = seq(-0.5, 6.5, by = 1), col=c( rgb(1,0,0,0.5) , col=rgb(0,0,1,0.5)))
 
 
 ```
 
-Kolejny istotny wynik odnosi się do ... spędzania wakacji na wsi :) P-val 0.017, ale już False Discovery Rate FDR=0.9. Środek ciężkości grupy spędzającej wakacje na wsi jest o jedno oczko wyżej niż tych, których cała rodzina mieszka od conajmniej dwóch pokoleń w miastach. Wśród tych którzy są określili siebie jako bardziej nowocześni od .Nowoczesnej mocno przeważają osoby z babcią na wsi. Za to wśród bardziej lewicowych od Razem wszystkie trzy osoby są od wielu pokoleń mieszczuchami. Ale już zmienna czyJestemZMiasta (subiektywnie ocena siebie) nie grała już roli.
+Wszystkie osoby, które określiły się jako profesjonalni humaniści, (a było ich `r sum(data$czyHumanista=='humanista')`-oro) opowiedziały się bliżej partii Razem. To bardziej pytanie filtrujęce niż pytające o przyczynę. \
+
+Kolejny istotny wynik odnosi się do ... posiadania (i zapewne odwiedzin) dziadków na wsi :) P-val 0.015, ale już False Discovery Rate FDR=0.85. Środek ciężkości grupy spędzającej wakacje na wsi jest o jedno oczko wyżej niż tych, których cała rodzina mieszka od co najmniej dwóch pokoleń w miastach. Wśród tych którzy są określili siebie jako bardziej nowocześni od .Nowoczesnej mocno przeważają osoby z babcią na wsi. Za to wśród bardziej lewicowych od Razem wszystkie trzy osoby są od wielu pokoleń mieszczuchami. Ale już zmienna `czyJestemZMiasta` (subiektywnie ocena siebie) nie grała już roli.
 
 ```{r babcia, echo=F}
 
-hI = as.integer(data2$czyBabciaNaWsi)==2
-nhI = as.integer(data2$czyBabciaNaWsi)==1
-plotOverlappingHist(a = data2$y[hI], b = data2$y[nhI],  xlab="", ylab="#respondentów",
+hI = as.integer(data$czyDziadkowieNaWsi)==2
+nhI = as.integer(data$czyDziadkowieNaWsi)==1
+plotOverlappingHist(a = data$y[hI], b = data$y[nhI],
+                    legend=c("dziadkowie na wsi", "bez dziadków na wsi"),
+                    xlab="", ylab="#respondentów",
                     main="babcia na wsi", breaks = seq(-0.5, 6.5, by = 1), col=c( rgb(1,0,0,0.5) , col=rgb(0,0,1,0.5)))
 ```
 
-Kolejne binarne pytania mają już FDR~1, czyli mimo, że byłyby istotne gdyby były testowane oddzielnie, to już bardzo łatwo mogą się pojawić przy testowaniu wielu hipotez na raz, tak jak to ma miejsce tutaj (53 binarne odpowiedzi). Podam te kolejne binarne z pval < 0.1.Te FDR są trochę zawyżone, bo pytania nie są niezależne (np. odpowiedzi na pytania o sprawowanie i o wagary, o ZHP i ZHR, lub o pielgrzymki i oazy nie są niezależne).
+Kolejne binarne pytania mają już FDR~1, czyli mimo, że byłyby istotne gdyby były testowane oddzielnie, to już bardzo łatwo mogą się pojawić przy testowaniu wielu hipotez na raz, tak jak to ma miejsce tutaj (`r dim(res)[1]` binarne odpowiedzi). Podam te kolejne binarne z pval < 0.1. FDR są trochę zawyżone, bo pytania nie są niezależne (np. odpowiedzi na pytania o sprawowanie i o wagary, o ZHP i ZHR, lub o pielgrzymki i oazy nie są niezależne).\
 
-Ta nieliczna grupa która nie miała w szkole języka angielskiego unika partii Razem.
+Wpływ charakteru chyba nie jest zaskoczeniem:\
+
+```{r charakter, echo=F}
+hI = data$charakter == "indywidualista"
+nhI = data$charakter == "osoba społeczna"
+plotOverlappingHist(a = data$y[hI], b = data$y[nhI],
+                    legend = c("indywidualista", "osoba społeczna"),
+                    xlab="", ylab="#respondentów",
+                    main="charakter (postrzegany przez rówieśników)", 
+                    breaks = seq(-0.5, 6.5, by = 1), col=c( rgb(1,0,0,0.5) , col=rgb(0,0,1,0.5)))
+```
+
+Ta nieliczna grupa która nie miała w szkole języka angielskiego unika partii Razem:\
 
 ```{r angielski, echo=F}
-hI = as.integer(data2$czyJezykAng)==2
-nhI = as.integer(data2$czyJezykAng)==1
-plotOverlappingHist(a = data2$y[hI], b = data2$y[nhI], xlab="", ylab="#respondentów",
+hI = as.integer(data$czySzkolaAngielski)==2
+nhI = as.integer(data$czySzkolaAngielski)==1
+plotOverlappingHist(a = data$y[hI], b = data$y[nhI],
+                    legend = c("angielski w szkole", "brak angielskiego"),
+                    xlab="", ylab="#respondentów",
                     main="bez języka angielskiego w szkole", 
                     breaks = seq(-0.5, 6.5, by = 1), col=c( rgb(1,0,0,0.5) , col=rgb(0,0,1,0.5)))
 ```
 
 
-Wśród tych którym zdarzało się w szkole rozrabiać występuje wysoki odsetek (9/13=69%) osób z poglądami bliskimi Nowoczesnej.
+Wśród tych którym zdarzało się w szkole rozrabiać występuje wysoki odsetek osób z poglądami bliskimi Nowoczesnej.
 
 ```{r sprawowanie, echo=F}
-hI = as.integer(data2$sprawowanie)==2
-nhI = as.integer(data2$sprawowanie)==1
-plotOverlappingHist(a = data2$y[hI], b = data2$y[nhI], xlab="", ylab="#respondentów", 
+hI = as.integer(data$sprawowanie)==2
+nhI = as.integer(data$sprawowanie)==1
+plotOverlappingHist(a = data$y[hI], b = data$y[nhI],
+                    legend = c("zawsze > bdb", "nie zawsze"),
+                    xlab="", ylab="#respondentów", 
                     main="zawsze co najmniej piątka z zachowania",
                     breaks = seq(-0.5, 6.5, by = 1), col=c( rgb(1,0,0,0.5) , col=rgb(0,0,1,0.5)))
 ```
 
 Na drugim końcu, czynniki które kompletnie nie mają znaczenia to np. bycie jedynakiem, subiektywne wywodzenie się ze szlachty, ojciec po służbie wojskowej, rodzic akademik, rodzina w USA lub ZSRR, chrzest, komunia, ZHP, wiązanie się z innym niż polski etnosem, czy też bycie cyklistą lub akwarystą :)
 
-Znacznie mniej kobiet niż mężczyzn wzięło udział w badaniu. Wśród kobiet nie było skrajnych opcji politycznych.
+## Analiza 2: Zobaczmy jak czy wyglądają odpowiedzi niebinarne:
 
+Możemy zobaczyć na kogo wyrośli Atarowcy i Commodorowcy:\
+```{r, echo=F}
+plotCategoric(data$pierwszyKomputer, data$y, main="pierwszy komputer")
+```
 
+Wśród ulubionych pisarzy kilka nazwisk pojawiało się często: Szklarski, Tolkien, May oraz Nienacki. Reszta odpowiedzi mniej liczna. NIE pojawił się Sienkiewicz. Mickiewicz pojawił się raz. Największa różnica między miłośnikami Maya a Szklarskiego.
+```{r, echo=F}
+plotCategoric(data$ulubiony.pisarz, data$y, main="ulubiony pisarz")
+```
+
+Wśród dobranocek nie ma takich dużych różnic:\
+```{r, echo=F}
+plotCategoric(data$Ulubiona.dobranocka, data$y, main="ulubiona dobranocka")
+```
+
+Pochodzimy z terenów wszystkich zaborów po równo, ale nie ma to większego wpływu. Może ci z pruskiego są lekko bardziej w stronę Razem:\
+```{r, echo=F}
+plotCategoric(data$zJakiegoZaboru, data$y, main="z jakiego zaboru")
+```
+
+Otrzymywanie kieszonkowego, czyli od młodych lat możliwość dysponowania własną gotówką nie wydaje się mieć wpływu:\
+```{r, echo=F}
+plotCategoric(data$jakieKieszonkowe, data$y, main="kieszonkowe")
+```
+
+Prawie nikt (z Krakowiaków) nie kibicował Cracovii. Za to ci, którzy kibicowali Wiśle są bardziej przesunięci w stronę Nowoczesnej względem reszty, której problem Wisła-Cracovia nie dotyczył.\
+```{r, echo=F}
+plotCategoric(data$klubPilkarski, data$y, main="klub piłkarski")
+```
+
+Wiek badanego wydaje się być ważny. Osoby urodzone po 1985r. mają poglądy bardziej w stronę Razem.\
+```{r, echo=F}
+plotCategoric(data$kiedyUrodzony, data$y, main="kiedy urodzony")
+```
+```{r}
+with(data, t.test(y[kiedyUrodzony=="przed 1980"], y[kiedyUrodzony=="po 1985"]))
+with(data, t.test(y[kiedyUrodzony=="między 1980 a 1985"], y[kiedyUrodzony=="po 1985"]))
+```
+
+Jeśli poglądy któregoś z rodziców na nas wpływały, to były to poglądy matki. Matki, które kontestowały system słusznie miniony, wychowały dzieci o poglądach bardziej w stronę Nowoczesnej niż, te które były nastawione neutralnie lub entuzjastycznie do PRL.
+```{r, echo=F}
+plotCategoric(data$Stosunek.matki.do.PRL, data$y, main="stosunek matki do PRL", min.count=1)
+br()
+```
+W skali 0-10 stosunek matki i ojca do PRL. 0-nienawiść systemu, 10-miłość do systemu. \
+```{r, echo=F}
+plotCategoric(data$Stosunek.ojca.do.PRL, data$y, main="stosunek ojca do PRL", min.count=1)
+br()
+```
+I przetestujmy czy poglądy matki były istotne:\
+```{r}
+with(data, t.test(y[Stosunek.matki.do.PRL >= 4], y[Stosunek.matki.do.PRL < 4]))
+```
+
+## Analiza 3: samodzielne przeglądanie danych
 Więcej takich porównawczych histogramów możesz wygenerować sam:
+
+### A)
+Np. ustaw pierwszą zmienną na y (preferencje polityczne: 1-Razem, 6-Nowoczesna) i zmieniaj drugą zmienną. Możesz też ustawić pierwszą zmienną na jakąś inną liczbową np.\
+`zmienna pionowa = poziomNauczaniaReligijności, zmienna pozioma = zJakiegoZaboru`, aby zobaczyć, że średni poziom był taki sam.\
+`zmienna pionowa = poziomNauczaniaReligijności, zmienna pozioma = czyMatkaPracująca`, aby zobaczyć, że pracująca matka koreluje z wyższym poziomem nauczania religijności, a bycie (aktualnie) humanistą z niższym.\
+
+
+### B)
+
+Albo zmieniaj obie zmienne kategoryczne aby zobaczyć liczność grup.\
+Przykład: `zmienna pionowa = czyZHP, zmienna pozioma = czyZHR`, 
+aby zobaczyć, że większość nie była w ZHR, ale wśród tych którzy byli w ZHR 40% było też w ZHP.\
 
 ```{r, echo = FALSE}
 sidebarPanel(
-    selectInput("dataset0", "pierwsza zmienna:", res$czynnik),
-    renderPlot({plot(data2[, input$dataset0])}, width=300, height=200),
-    selectInput("dataset1", "druga zmienna:", res$czynnik),
-    renderPlot({plot(data2[, input$dataset1])}, width=300, height=200)
+    selectInput("dataset0", "zmienna pionowa:", names(data), selected="y"),
+    renderPlot({plot(data[, input$dataset0])}, width=300, height=200),
+    selectInput("dataset1", "zmienna pozioma:", names(data), selected = "charakter"),
+    renderPlot({plot(data[, input$dataset1])}, width=300, height=200)
   )
 
 
 mainPanel(
 renderPlot({
-  hI = (data2[, input$dataset1] == levels(data2[, input$dataset1])[1])
-  nhI = (data2[, input$dataset1] == levels(data2[, input$dataset1])[2])
-  plotOverlappingHist(a = data2$y[hI], b = data2$y[nhI], 
-                    main=input$dataset1, xlab="", ylab="#respondentów",
-                    breaks = seq(-0.5, 6.5, by = 1), col=c( rgb(1,1,0,0.2) , rgb(0,0,1,0.2)))
-}, width=500, height=300),
+  d = data[, input$dataset1]
+  y = data$y[d != "BRAK ODPOWIEDZI"]
+  d = d[d != "BRAK ODPOWIEDZI"]
+  if(class(d) == "factor")
+    d = droplevels(d)
+  hI = (d == levels(d)[1])
+  nhI = (d == levels(d)[2])
+  plotOverlappingHist(a = y[hI], b = y[nhI], legend=c(levels(d)[1:2]),
+                    main=input$dataset1, xlab="", ylab="#respondentow",
+                    breaks = seq(-0.5, 6.5, by = 1))
+}, width=600, height=400),
 
 #textOutput("pierwsza zmienna wygląda tak:")
 
 
 #textOutput("wykres pierwszej i drugiej zmiennej:")
-renderPlot({  plot(data2[, input$dataset1], data2[, input$dataset0], xlab="druga zmienna", ylab="pierwsza zmienna") }, width=500, height=300)
+renderPlot({  plot(data[, input$dataset1], data[, input$dataset0], xlab=input$dataset1, ylab=input$dataset0) }, width=600, height=300)
 )
 ```
 
+## Analiza 4
 
-Na tym zazwyczaj kończyłoby się typowa analiza do artykułu w gazecie. My tutaj pokusimy się o bardziej współczesne naukowe podejście i spróbujemy zrobić w jakimś sensie optymalny predyktor preferencji politycznych na podstawie wszystkich danych i zobaczymy jak bardzo "sprawny" ten predyktor jest nowych danych.
+Na tym zazwyczaj kończyłoby się typowa analiza do artykułu w gazecie. My tutaj pokusimy się o (przynajmniej w mojej dziedzinie standardowe) naukowe podejście i spróbujemy skonstruować w jakimś sensie optymalny predyktor preferencji politycznych na podstawie wszystkich danych i zobaczyć jak dobrze sprawdza się ten predyktor na nowych danych.\
 
-Musiałem coś zrobić z NAs. Niestety procedura numeryczna do minimalizacji jest bardziej z krainy algebry liniowej niż wnioskowania, więc nie znosi missing values (NA). 
-Dwie osoby nie podały prlmatki cztery prlojca. co ciekawe tylko jedna z pięciu osób które odmówiły odpowiedzi odmówiła obu odpowiedzi. Ponieważ, 
+Zastosuję tutaj regresję liniową wielu zmiennych, tzn będziemy wyjaśniać preferencje polityczne (y) jako funkcję
+odpowiedzi na wszystkie pytania. Przy podobnej liczbie zmiennych co obserwacji bardzo łatwo o overfitting, dlatego
+zastosuję tu regularyzację połączoną z cross-validacją, wybierając taki współczynnik regularyzacyjny lambda, który daje
+taki model, który najlepiej zachowuje się na nowych danych.
+Regularyzację zrobię typu ridge (penalizacja normy L2 wektora współczynników) plus lasso (penalizacja L2 tego samego wektora).
+Lasso, ma tę fajną cechę, że ustawia wiele współczynników dokładnie na zero, czyniąc model prostszym (rzadkim, sparse).
+Wszystkie funkcje z pakietu glmnet Roba Tibshiraniego.
+
+Dygresja: Musiałem coś zrobić z NAs. Niestety procedura numeryczna do minimalizacji jest bardziej z krainy algebry liniowej niż wnioskowania, więc nie znosi brakujących danych (missing values, NA) w macierzach, którymi operuje.
+
+```{r glmnet}
+set.seed(0)
+x = data[2:length(data)]
+y = data$y
+
+# CZYSZCZENIE
+# te dane da się sensownie zmapować w liczby rzeczywiste:
+x$kiedyUrodzony = 0
+x$kiedyUrodzony[data$kiedyUrodzony == "przed 1980"] = -1
+x$kiedyUrodzony[data$kiedyUrodzony == "po 1985"] = +1
+
+x$jakieKieszonkowe = 0
+x$jakieKieszonkowe[data$jakieKieszonkowe == "żadne"] = -1
+x$jakieKieszonkowe[data$jakieKieszonkowe == "spore"] = +1
+
+# te dane kategoryczne ciężko użyć w modelu liniowym, więc je usuwam:
+x$inneZwierze = NULL
+x$Inne.powazne.choroby.z.dziecinstwa = NULL
+x$pierwszyKomputer  = NULL
+x$zJakiegoZaboru = NULL
+x$klubPilkarski = NULL
+x$Ulubiona.dobranocka = NULL
+x$ulubiony.pisarz = NULL
+
+# zapełniam dziury (niewiele ich jest) najczęściej pojawiającą się odpowiedzią:
+x = as.data.frame(lapply(x, function(w) 
+{
+  moda = names(which.max(table(w)))
+  ktore = (w %in% c("BRAK ODPOWIEDZI")) | is.na(w)
+  w[ktore] = moda
+  as.numeric(w)
+}))
+
+# nasze predyktory:
+x = as.matrix(x)
+
+# nasz model liniowy:
+fit = glmnet(x, y, standardize = T)
+# większość predyktorów jest binarna, więc można by zrobić logistyczną regresję
+
+# wykres współczynników w funkcji lambdy (jak bardzo chcemy zregularyzowany mieć model):
+plot(fit, label=T)
+plot(fit, label=T, xvar="lambda")
+
+```
+Wykres przedstawia wartość współczynników regresji (oś pionowa) w zależności od stopnia regularyzacji (oś pozioma).
+Najbardziej po lewej znajduje się model ze wszystkimi współczynnikami zerowymi - maksymalnie zregularyzowany.
+Najbardziej po prawej model bez regularyzacji - wszystkie współczynniki mogą być niezerowe.
+Nam zależy na tym, aby wybrać taki model, który najlepiej radzi sobie na nowych danych. W tym celu przeprowadzimy cross-validację (walidację krzyżową?): 
+model zostanie dofitowany do 90% odpowiedzi i przetestowany na pozostałych 10%. I tak losowo sto razy.
+
+```{r}
+# przeprowadzamy cross-validację:
+cvfit = cv.glmnet(x, y, standardize = T)
+plot(cvfit, log="y")
+```
+
+Najlepsza lambda, czyli taka, dla której błąd przewidywań modelu dla nowych danych jest najmniejszy to:
+
+```{r}
+cvfit$lambda.min
+```
+
+No i oczywiście to co nas najbardziej interesuje, współczynniki:
+
+```{r}
+wspolczynniki = coef(cvfit, s = "lambda.min")
+wspolczynniki = as(wspolczynniki[,1], "vector")
+wspolczynniki = wspolczynniki[wspolczynniki != 0]
+renderTable(data.frame(wspolczynnik=wspolczynniki, predyktor=names(wspolczynniki)), digits = 5)
+```
+
+Pozytywne współczynniki oznaczają, że dany predyktor zbliża do Nowoczesnej a oddala od Razem. Jak widać w modelu pojawiają się predyktory, które już widzieliśmy jako istotne gdy rozważaliśmy pojedyncze zmienne.\
+
+Ogólnie nasz model jest całkiem kiepski. Potrzebujemy duże lambda, aby model nie robił zbyt dużego over-fitting (przeuczenia?) i do tego model jest niewiele lepszy od modelu ze wszystkimi wpółczynnikami zerowymi i przypisującemu zawsze średnią (Intercept).
+
+
+## Analiza 5: Pokolenie stanu wojennego
+
+I jeszcze to samo, tylko ograniczając się do grupy stanu wojennego:
+```{r wojenny, echo=F}
+x2 = x[x[, "kiedyUrodzony"] == 0, ]
+y2 = y[x[, "kiedyUrodzony"] == 0]
+
+fit2 = glmnet(x2, y2, standardize = T)
+plot(fit2, label=T)
+plot(fit2, label=T, xvar="lambda")
+
+
+cvfit2 = cv.glmnet(x2, y2, standardize = T)
+plot(cvfit2, log="y")
+
+cvfit2$lambda.min
+wspolczynniki2 = coef(cvfit2, s = "lambda.min")
+wspolczynniki2 = as(wspolczynniki2[,1], "vector")
+wspolczynniki2 = wspolczynniki2[wspolczynniki2 != 0]
+renderTable(data.frame(wspolczynnik=wspolczynniki2, predyktor=names(wspolczynniki2)), digits = 5)
+```
+Zatem gdy zawęzimy grupę do pokolenia stanu wojennego, tylko kilka współczynników pozostaje niezerowych w optymalnym modelu:
+dziadkowie na wsi, sprawowanie (+wagary) oraz poziom nauczani religijności :)
